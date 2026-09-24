@@ -9,7 +9,7 @@
 The engine renders and inspects PDFs through PDFium, run as a child process behind the `vl-pdfium` wrapper. The brief leaves open whether to build PDFium from source or to pin a well-known prebuilt release by checksum. Facts probed on 2026-09-24:
 
 - **PDFium has no source tarballs.** It is developed in Chromium's git infrastructure and checked out with `gclient`, which also fetches a Chromium toolchain (clang, GN, sysroots). A source build needs that toolchain. Our "pinned source tarball" would be a snapshot we made ourselves, not an upstream artefact.
-- **Runners:** standard GitHub-hosted arm64 runners for public repositories have 4 cores, 16 GB of RAM and 14 GB of SSD, and a job may run for at most 6 hours (GitHub documentation, read 2026-09-24). A PDFium checkout with its toolchain takes a significant share of that disk. We have not measured it.
+- **Runners:** GitHub documents standard arm64 runners for public repositories as 4 cores, 16 GB of RAM and 14 GB of SSD, with a 6-hour job limit. The spike job in this pull request measured `ubuntu-24.04-arm` on 2026-09-24 at 4 CPUs, 15 GiB of RAM and 108 GB free on `/`. Disk is therefore not the constraint. Toolchain setup and build time are, and neither has been measured.
 - **`bblanchon/pdfium-binaries`** (MIT-licensed build scripts, public GitHub Actions builds) publishes weekly builds per Chromium branch. Release `chromium/8066` (PDFium 156.0.8066.0, published 2026-09-21) has these assets:
   - `pdfium-linux-arm64.tgz`: 3,664,840 bytes, SHA-256 `0e6f90dccbc6b81fd5d7106abaf164c4222178f024c204d00d526b60fd2ad535`
   - `pdfium-linux-x64.tgz`: 3,743,765 bytes, SHA-256 `0b43f405477cf2cfc4dbff06905093c3309756c6bca1fb9da99234a2ca97fed2`
@@ -29,7 +29,7 @@ The engine renders and inspects PDFs through PDFium, run as a child process behi
 
 | Option | For | Against |
 | --- | --- | --- |
-| Build from source with `gclient` in our CI | Everything auditable from Google's git; our own GN arguments | No upstream tarball to pin; large checkout on a 14 GB runner; hours of work on the gate G1 critical path; we would maintain a Chromium toolchain setup |
+| Build from source with `gclient` in our CI | Everything auditable from Google's git; our own GN arguments | No upstream tarball to pin; large checkout and unmeasured build time; hours of work on the gate G1 critical path; we would maintain a Chromium toolchain setup |
 | Prebuilt from `bblanchon/pdfium-binaries`, pinned by checksum and provenance (chosen) | Small (under 4 MB compressed); public build scripts; verifiable SLSA provenance; the non-V8 variant matches the no-JavaScript requirement; both architectures | Trust in one maintainer's pipeline; we inherit their build flags and timing; Chromium's bundled libc++ is linked inside |
 | Distribution packages | Simple | Amazon Linux 2023 does not ship PDFium; other distributions' packages would break the "pinned and verified" rule |
 

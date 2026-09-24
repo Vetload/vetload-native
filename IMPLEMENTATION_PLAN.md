@@ -111,7 +111,7 @@ Every check below has a negative case that must fail, run on every pull request 
 | C12 or C13 needs ffmpeg components not listed | Additions by issue; the audit list changes in the same pull request |
 | Implementation notes suggest ffprobe reading signed URLs over TLS | Conflicts with the brief and the platform security baseline; this plan compiles no network code and relies on the engine piping bytes (open question 4) |
 | Prebuilt PDFium supply chain | Checksum plus SLSA provenance verification; from-source check in P1; ADR-0001 |
-| Build time or the 14 GB runner disk | Per-stage caching and cleaning build trees inside each stage; first build is measured in M1 |
+| Build time within the 6-hour job limit | Per-stage caching; first build is measured in M1. Disk is ample: the spike measured 108 GB free on `ubuntu-24.04-arm`, although GitHub documents 14 GB |
 | GHCR packages start private | Founder action below |
 | Upstream CVE cadence, especially in image codecs | Scheduled scan from P1; patch releases are small because stages are cached |
 | Reproducibility gaps in some build systems | Explained differences are allowed but listed with a reason |
