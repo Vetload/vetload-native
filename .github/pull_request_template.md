@@ -27,4 +27,4 @@ Closes #
 
 **Contracts and docs**
 - [ ] Shared shapes changed only through `contracts/`
-- [ ] User-facing change documented, or a docs issue is open on C16
+- [ ] User-facing change documented, or a docs issue is open on C20
