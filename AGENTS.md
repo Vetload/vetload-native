@@ -1,12 +1,11 @@
 # Agent instructions: Vetload native stack
 
-This repository is component **C03 Native stack** of Vetload, built by an independent agent.
+This repository belongs to Vetload's **API session**. It is optional at launch: the API session uses it if and when it needs it.
 
 ## Before anything else
 
-1. Read your brief: `../vetload-platform/docs/components/C03-native-stack.md` locally, or [C03-native-stack.md](https://github.com/Vetload/vetload-platform/blob/main/docs/components/C03-native-stack.md) for organisation members.
-2. Read the agent playbook: `../vetload-platform/docs/program/agent-playbook.md`.
-3. Your first pull request is a planning pull request with `ARCHITECTURE.md` and `IMPLEMENTATION_PLAN.md` in this repository.
+1. Read the plan: `../vetload-platform/PLAN.md` locally, or [PLAN.md](https://github.com/Vetload/vetload-platform/blob/main/PLAN.md) for organisation members.
+2. Open pull requests; never push to `main`.
 
 ## This repository is public
 
