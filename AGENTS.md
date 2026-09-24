@@ -4,8 +4,8 @@ This repository is component **C21 Native stack** of Vetload, built by an indepe
 
 ## Before anything else
 
-1. Read your brief: `../platform/docs/components/C21-native-stack.md` locally, or [C21-native-stack.md](https://github.com/Vetload/platform/blob/main/docs/components/C21-native-stack.md) for organisation members.
-2. Read the agent playbook: `../platform/docs/program/agent-playbook.md`.
+1. Read your brief: `../vetload-platform/docs/components/C21-native-stack.md` locally, or [C21-native-stack.md](https://github.com/Vetload/vetload-platform/blob/main/docs/components/C21-native-stack.md) for organisation members.
+2. Read the agent playbook: `../vetload-platform/docs/program/agent-playbook.md`.
 3. Your first pull request is a planning pull request with `ARCHITECTURE.md` and `IMPLEMENTATION_PLAN.md` in this repository.
 
 ## This repository is public
