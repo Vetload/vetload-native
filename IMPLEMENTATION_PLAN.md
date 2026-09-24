@@ -1,13 +1,13 @@
 # Implementation plan: Vetload native stack (C03)
 
-Companion to [ARCHITECTURE.md](ARCHITECTURE.md). Each milestone is one or more small pull requests. A milestone is done only when its checks have been seen failing once and then passing, with the failing run linked in the pull request.
+Companion to [ARCHITECTURE.md](ARCHITECTURE.md). Aligned with the program's Wave 1 conventions in [ADR-0049](https://github.com/Vetload/vetload-platform/blob/main/docs/architecture/decisions/0049-wave-1-alignment.md). Each milestone is one or more small pull requests. A milestone is done only when its checks have been seen failing once and then passing, with the failing run linked in the pull request.
 
 ## Milestones
 
 | Milestone | Phase | Outcome |
 | --- | --- | --- |
 | M0 Planning | Wave 1 | This pull request: architecture, plan, ADR-0001 and ADR-0002, and a spike that probes the GitHub-hosted runners |
-| M1 First base image | Wave 1, gate G1 | `v0.1.0`: `ghcr.io/vetload/native-base` for `linux/arm64`, with provenance |
+| M1 First base image | Wave 1, gate G1 | `v0.1.0`: `ghcr.io/vetload/native-base` for `linux/arm64` with `vl-spawn`, with provenance |
 | M2 Production images | P0 | Both architectures, `native-sdk`, `vl-pdfium`, SBOM, full licence guard, size budget, reproducibility check, source mirrors |
 | M3 Codecs and CVE watch | P1 | libultrahdr, libavif and an AVIF encoder; scheduled vulnerability scan against the SBOM |
 | M4 Provenance tools | P2 | `c2patool`; ffmpeg additions for sprites and hover clips |
@@ -15,7 +15,7 @@ Companion to [ARCHITECTURE.md](ARCHITECTURE.md). Each milestone is one or more s
 
 ## M1: first base image (gate G1)
 
-1. `schemas/sources.v1.json` and `sources.json` with the entries in the seed manifest below; a CI job validates the manifest against the schema.
+1. `schemas/sources.v1.json`, `schemas/native-release.v1.json` and `sources.json` with the entries in the seed manifest below; CI validates the manifest and every generated `native-release.json` against their schemas. `native-release.v1` stays stable across `v0.x`: additive optional fields only, because `native.lock` embeds it unchanged (ADR-0049 E2).
 2. `guard/fetch-verify.sh`: downloads each `url` over HTTPS, checks `sha256` before extraction, and refuses anything else. For entries with `sha256_origin: computed-after-signature`, the pin is recorded only after the upstream signature verifies against a key fingerprint stored in the manifest.
 3. Recipes for zlib, libffi, pcre2, glib, expat, libjpeg-turbo, libpng, libwebp, libtiff, lcms2, libexif, highway, libde265, dav1d, libheif, libvips, qpdf and ffmpeg, plus the PDFium unpack step from ADR-0001.
    - glib: without libmount, SELinux, introspection or tests.
@@ -23,22 +23,29 @@ Companion to [ARCHITECTURE.md](ARCHITECTURE.md). Each milestone is one or more s
    - libvips: modules off; loaders for JPEG, PNG, WebP, TIFF, GIF (built-in), HEIF, with lcms2, libexif and highway; PDF, SVG, ImageMagick, OpenSlide, Poppler, libimagequant and every other optional loader off.
    - qpdf: built-in crypto only, so there is no OpenSSL or GnuTLS dependency; confirm the option names against 12.4.1's CMake files.
    - ffmpeg: exactly the configure line in ARCHITECTURE.md.
-4. `Dockerfile` with pinned builder and runtime digests, the `/opt/vetload` layout, `ld.so.conf.d` entry and environment variables.
-5. Guards needed for G1:
+4. **`vl-spawn`** (ADR-0049 E1) in `launcher/vl-spawn/vl-spawn.c`, implementing C06's ADR-0029 contract exactly as in ARCHITECTURE.md and Vetload/vetload-native#3. Plain C against glibc, no other dependency. The `nonet` seccomp profile is hand-written BPF that denies `socket`, `socketpair`, `connect`, `bind`, `listen` and `accept`. It uses the `close_range` system call directly if the libc wrapper is missing. It is built with `-O2 -fstack-protector-strong -D_FORTIFY_SOURCE=3 -fPIE -pie` and full RELRO. Its test suite (`launcher/vl-spawn/tests/`) runs in the `build` stage on every pull request and again on the published digest; see the test plan.
+5. `Dockerfile` with pinned builder and runtime digests, the `/opt/vetload` layout, `ld.so.conf.d` entry and environment variables.
+6. Guards needed for G1:
    - **Component audit**: `ffprobe -hide_banner -demuxers`, `-decoders`, `-protocols`, `-bsfs`, `-filters` and `-muxers` must equal the lists committed in `guard/ffmpeg-expected/`; `vips -l foreign` must contain the expected loaders and none of the excluded ones.
-   - **Licence guard, first version**: manifest SPDX allowlist; `ffmpeg -L` must report LGPL version 2.1 or later; every `DT_NEEDED` entry of every ELF file under `/opt/vetload` must resolve to a manifest library or an allowlisted base-OS library such as glibc, libstdc++ and libgcc_s.
+   - **Licence guard, first version** (ADR-0049 F3: it covers what C03 builds, links or enables, not base-OS programs): manifest SPDX allowlist; `ffmpeg -L` must report LGPL version 2.1 or later; every `DT_NEEDED` entry of every ELF file under `/opt/vetload` must resolve to a manifest library or to the C and C++ runtime libraries (glibc, libstdc++ and libgcc_s).
    - **ABI floor**: no ELF under `/opt/vetload` requires a newer `GLIBC_` symbol version than the runtime image provides; this matters most for prebuilt PDFium.
-6. `release.yml`: triggered by `v*` tags on `main`, builds on `ubuntu-24.04-arm`, pushes by digest, refuses to overwrite an existing tag, writes `native-release.json` and `SHA256SUMS`, and runs `actions/attest-build-provenance` on the image digest.
-7. Smoke job on the published digest: every tool starts; `vipsheader` reads a JPEG, PNG, WebP and TIFF that `vips` writes in the job; `qpdf --empty` produces a PDF that a PDFium smoke program from a test-only stage opens; `ffprobe` reads a WAV that the runner writes and pipes in. HEIC, AVIF and MP4 coverage waits for the C04 corpus, because the image deliberately has no encoders for them.
-8. Tag `v0.1.0`; post the digest and the verification commands on the kickoff issue.
+7. `release.yml`: triggered by `v*` tags on `main`, builds on `ubuntu-24.04-arm`, pushes by digest, refuses to overwrite an existing tag, writes `native-release.json` and `SHA256SUMS`, and runs `actions/attest-build-provenance` on the image digest.
+8. Smoke job on the published digest: `vl-spawn` passes its test suite, and every tool below is started through `vl-spawn`; `vipsheader` reads a JPEG, PNG, WebP and TIFF that `vips` writes in the job; `qpdf --empty` produces a PDF that a PDFium smoke program from a test-only stage opens; `ffprobe` reads a WAV that the runner writes and pipes in. HEIC, AVIF and MP4 coverage waits for the C04 corpus, because the image deliberately has no encoders for them.
+9. **Release checklist** (`docs/release-checklist.md`, followed for every tag):
+   - tag from `main`;
+   - confirm the smoke job is green on the published digest;
+   - on a package's **first publish only, the founder makes it public** in the GHCR package settings and links it to this repository (ADR-0049 F5). GitHub has no API for this, so it is a manual step, and it applies to `native-base` in M1 and `native-sdk` in M2;
+   - check anonymous `crane digest` works;
+   - post the digest and verification commands on the kickoff issue.
+10. Tag `v0.1.0`. The G1 box is ticked when the tag exists and these proofs are green; C06 building on it is a follow-up (ADR-0049 G1).
 
 ## M2: production images (P0)
 
 1. `linux/amd64` build on `ubuntu-24.04`, and a multi-platform index made with `docker buildx imagetools create`.
 2. `native-sdk` image: the same tree plus `include/` and `lib/pkgconfig/`.
-3. `vl-pdfium` in C: `info` (version, page count and sizes, form type, JavaScript action count, attachment names, encryption and permissions, title and author, outline presence, tagged, language, signature count) and `render --page N --max-side PX` producing PPM. Input from stdin or `--input fd:N`, page and pixel limits, and the exit codes in ARCHITECTURE.md. The JSON Schema `schemas/vl-pdfium-info.v1.json` is validated in CI against its output on every PDF in the corpus. A block-request input mode is added only if C13 asks for it (open question 3).
+3. `vl-pdfium` in C: `info` (version, page count and sizes, form type, JavaScript action count, attachment names, encryption and permissions, title and author, outline presence, tagged, language, signature count) and `render --page N --max-side PX` producing PPM. Input from stdin or `--input fd:N`, page and pixel limits, and the exit codes in ARCHITECTURE.md. The JSON Schema `schemas/vl-pdfium-info.v1.json` is validated in CI against its output on every PDF in the corpus. A block-request input mode is added only if C13 asks for it (open question 1).
 4. CycloneDX 1.6 SBOM generated from the manifest, with ffmpeg's configure line and enabled component lists as properties, merged with a Syft scan of the base OS layer; attached as a release asset and as an attestation.
-5. Full licence guard: the M1 checks, plus LGPL entries must have `linkage: shared` and ship a `.so`, plus a report listing every base-OS package whose licence is GPL or AGPL, which must match a reviewed allowlist (open question 1).
+5. Full licence guard: the M1 checks, plus LGPL entries must have `linkage: shared` and ship a `.so`. Base-OS packages appear in the SBOM for transparency but are outside the guard (ADR-0049 F3).
 6. Size report `sizes.json` per library and per image, with a budget of **100 MB for `/opt/vetload` in the base image**. That keeps the default path far below the 250 MB unzipped limit of a Lambda layer, so the zip-and-layer fallback in the platform's packaging decision stays open. The figure is an estimate to be confirmed by the first measured build.
 7. Reproducibility: every release builds the arm64 tree twice on separate runners and compares SHA-256 of every file; differences fail the release unless explained in `guard/repro-allowlist.txt` with a reason.
 8. Source mirrors: each release uploads its verified tarballs as assets, and `mirror` points at them.
@@ -103,30 +110,36 @@ Every check below has a negative case that must fail, run on every pull request 
 | Tag immutability | A release would overwrite an existing tag | Dry run against `v0.1.0` after it exists |
 | Provenance | The attestation does not verify | Verification against a wrong `--repo` must fail |
 | Corpus smoke (P0) | A tool crashes or output does not parse | The job fails if it processed zero files |
+| `vl-spawn` limits | A child's `/proc/self/limits` does not show the requested `RLIMIT_AS`, `RLIMIT_CPU` (hard one second above soft), `RLIMIT_NOFILE`, `RLIMIT_FSIZE` and `RLIMIT_CORE` 0 | The same probe run without `vl-spawn` shows the defaults, so the check can see a difference |
+| `vl-spawn` process group | The child's process group ID differs from its PID | Same probe without `vl-spawn` |
+| `vl-spawn` descriptors | A descriptor above 2, opened on purpose before the launch, is still open in the child | Same probe without `vl-spawn` sees it |
+| `vl-spawn` CPU limit | A busy loop under `--cpu 1` is not killed by `SIGXCPU` | Busy loop under `--cpu 5` is still running after 2 seconds |
+| `vl-spawn` seccomp `nonet` | `socket()` succeeds in the child | The same child without `--seccomp` creates a socket |
+| `vl-spawn` exit codes | A bad option does not give 125, a non-executable file 126, a missing file 127 | A valid child's own exit code 3 passes through unchanged |
 
 ## Risks
 
 | Risk | Mitigation |
 | --- | --- |
 | C12 or C13 needs ffmpeg components not listed | Additions by issue; the audit list changes in the same pull request |
-| Implementation notes suggest ffprobe reading signed URLs over TLS | Conflicts with the brief and the platform security baseline; this plan compiles no network code and relies on the engine piping bytes (open question 4) |
+| Implementation notes suggest ffprobe reading signed URLs over TLS | Conflicts with the brief and the platform security baseline; this plan compiles no network code and relies on the engine piping bytes (open question 2) |
 | Prebuilt PDFium supply chain | Checksum plus SLSA provenance verification; from-source check in P1; ADR-0001 |
 | Build time within the 6-hour job limit | Per-stage caching; first build is measured in M1. Disk is ample: the spike measured 108 GB free on `ubuntu-24.04-arm`, although GitHub documents 14 GB |
-| GHCR packages start private | Founder action below |
+| GHCR packages start private | Release checklist step (ADR-0049 F5) |
+| Seccomp or `PR_SET_PDEATHSIG` refused on Lambda | `vl-spawn` ignores `EPERM` for the death signal, and C06 passes `nonet:optional` until its Lambda probe settles it (ADR-0029) |
 | Upstream CVE cadence, especially in image codecs | Scheduled scan from P1; patch releases are small because stages are cached |
 | Reproducibility gaps in some build systems | Explained differences are allowed but listed with a reason |
 
 ## Open questions
 
-1. The brief fixes "nothing GPL or AGPL in the engine images", while this repository's README says "linked or enabled". The runtime base image contains a shell and other operating-system programs, some of which are GPL, as separate programs. This plan treats the rule as "never linked or enabled in anything we build", and lists base-OS GPL packages in the SBOM against a reviewed allowlist. The founder should confirm (ADR-0002).
-2. Does C06's child protocol accept plain command-line children (argv, stdin, stdout, exit code), or do wrappers need a framed mode?
-3. Does C13 need `vl-pdfium` to request byte ranges from the supervisor, or is whole-file input under a size gate enough?
-4. C12: the video implementation notes propose ffprobe over HTTPS with GnuTLS. This plan follows the brief (pipe and file only). Confirm with C12 in Wave 2.
-5. Does anyone need `native-sdk` before P0?
-6. Does C04 need an image with encoders for its generators? `native-base` has no lossy encoders by design.
+Settled by ADR-0049: the GPL rule covers only C03-built outputs (F3), and children are started through `vl-spawn` as argv, stdin and stdout tools (E1, C06's ADR-0029).
+
+1. Does C13 need `vl-pdfium` to request byte ranges from the supervisor, or is whole-file input under a size gate enough?
+2. C12: the video implementation notes propose ffprobe over HTTPS with GnuTLS. This plan follows the brief (pipe and file only). Confirm with C12 in Wave 2.
+3. Does anyone need `native-sdk` before P0?
+4. Does C04 need an image with encoders for its generators? `native-base` has no lossy encoders by design.
 
 ## Founder actions
 
-- After the first push, make the `native-base` and `native-sdk` packages on GHCR **public** and link them to this repository. GHCR creates packages private by default, and the organisation must allow public packages.
-- Confirm open question 1.
+- Right after each package's first publish, make it **public** in the GHCR package settings and link it to this repository (ADR-0049 F5; release checklist). GHCR creates packages private, GitHub has no API to change that, and the organisation must allow public packages.
 - Enable branch protection on `main` and, if available, immutable releases for this repository. Branch protection is free for public repositories.

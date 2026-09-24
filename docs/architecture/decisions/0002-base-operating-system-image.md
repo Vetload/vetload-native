@@ -21,7 +21,7 @@ AWS states that `provided.al2023` is based on the Amazon Linux 2023 minimal imag
 - **Runtime stage: `public.ecr.aws/lambda/provided:al2023`, pinned by index digest.** The published `native-base` and `native-sdk` images are built on it and keep its entrypoint. The engine sets its own command. Other runtimes override the entrypoint.
 - **Builder stage: `public.ecr.aws/amazonlinux/amazonlinux:2023`, pinned by index digest.** Toolchain packages come from its locked repository release. The build records every installed package version in `build-info.json` and asserts that nothing under `/opt/vetload` needs a newer `GLIBC_` version than the runtime provides.
 - Both digests live in `sources.json` under `bases`. **Dependabot** opens pull requests when AWS publishes new digests. Each bump is an ordinary reviewed change that produces a PATCH release.
-- **GPL in the operating system.** The runtime image contains operating-system programs, including the shell that runs the entrypoint script, and some of them are GPL-licensed separate programs. The licence guard applies to everything we build under `/opt/vetload` and to linkage: no file there may link to or enable GPL or AGPL code. Base-OS packages are listed in the SBOM and compared with a reviewed allowlist. This reads the brief's fixed decision, "nothing GPL or AGPL in the engine images", as "not linked or enabled", which matches this repository's README. **It needs the founder's confirmation.** If the literal reading stands, the alternative is a runtime stage with no shell, which also means replacing Lambda's entrypoint script.
+- **GPL scope, as decided by the founder in [ADR-0049](https://github.com/Vetload/vetload-platform/blob/main/docs/architecture/decisions/0049-wave-1-alignment.md) F3.** The rule covers only what C03 builds, links or enables. No library or tool that C03 builds for the engine images may link or enable GPL or AGPL code. The licence guard enforces this on C03's own build outputs under `/opt/vetload`. Operating-system programs that ship with the pinned base image, such as the shell that runs the entrypoint script and coreutils, are outside the rule and outside the guard. They are still listed in the SBOM for transparency. ClamAV stays in its own sidecar image.
 
 ## Options considered
 
@@ -41,5 +41,5 @@ AWS states that `provided.al2023` is based on the Amazon Linux 2023 minimal imag
 ## Revisit when
 
 - AWS publishes a successor to Amazon Linux 2023 for Lambda, or support approaches its end in June 2029.
-- The founder rules that GPL operating-system programs are not allowed in engine images.
+- A superseding program ADR changes the GPL scope set by ADR-0049 F3.
 - Cold-start measurements show the runtime base image itself matters.
