@@ -1,0 +1,41 @@
+# SPIKE (planning pull request only; deleted in M1).
+# Probes that the GitHub-hosted runners this plan relies on are available to
+# this public repository, and records their CPU, memory, disk and Docker versions.
+name: spike-runner-probe
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/spike-runner-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04-arm, ubuntu-24.04]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - name: Report runner shape
+        run: |
+          set -eu
+          echo "runner=${{ matrix.runner }}"
+          echo "arch=$(uname -m)"
+          echo "cpus=$(nproc)"
+          free -g | sed -n 2p
+          df -h / | tail -1
+          docker version --format 'docker {{.Server.Version}} {{.Server.Arch}}'
+          docker buildx version
+      - name: Assert architecture matches the label
+        run: |
+          set -eu
+          arch="$(uname -m)"
+          case "${{ matrix.runner }}" in
+            *-arm) test "$arch" = "aarch64" ;;
+            *)     test "$arch" = "x86_64" ;;
+          esac
