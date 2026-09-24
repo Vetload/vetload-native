@@ -1,0 +1,20 @@
+name: Bug
+description: Something behaves differently from its contract or docs
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual, with request ID or inspection ID
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce

@@ -1,0 +1,27 @@
+name: Cross-component request
+description: Ask another component for a change, a contract, or unblocking
+labels: ["type:request"]
+body:
+  - type: input
+    id: from
+    attributes:
+      label: Requesting component
+    validations:
+      required: true
+  - type: input
+    id: to
+    attributes:
+      label: Owning component
+    validations:
+      required: true
+  - type: textarea
+    id: need
+    attributes:
+      label: What you need and why
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What you are doing meanwhile
+      description: For example, building against a stub of the contract
